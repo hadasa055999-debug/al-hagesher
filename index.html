@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>על הגשר עבר לכתובת חדשה</title>
+  <meta name="robots" content="noindex">
+  <style>
+    body { margin: 0; font-family: Assistant, Arial, sans-serif; background: #faf7f2; color: #2f1d11; display: flex; min-height: 100vh; align-items: center; justify-content: center; text-align: center; padding: 24px; box-sizing: border-box; }
+    .box { max-width: 440px; } h1 { font-family: 'Frank Ruhl Libre', serif; color: #4a2a16; font-weight: 500; }
+    a.btn, button { display: inline-block; background: #4a2a16; color: #faf7f2; border: 0; border-radius: 12px; padding: 13px 20px; font: inherit; font-weight: 700; text-decoration: none; margin: 6px; cursor: pointer; }
+    .ghost { background: #fff !important; color: #4a2a16 !important; border: 1px solid #d9cbbb !important; }
+    p { line-height: 1.6; } #msg { display: none; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>על הגשר עבר לכתובת חדשה</h1>
+    <p id="wait">מעבירה אותך…</p>
+    <div id="msg">
+      <p>הנתונים שלך שמורים בכתובת הישנה, במכשיר הזה. כדי להעביר אותם:<br><b>1.</b> הורדת גיבוי כאן &nbsp; <b>2.</b> בכתובת החדשה: הגדרות ← "שחזור מגיבוי".</p>
+      <button id="dl">הורדת גיבוי</button>
+      <a class="btn ghost" id="go" href="https://al-hagesher.github.io/">לכתובת החדשה</a>
+    </div>
+  </div>
+  <script>
+  (async function () {
+    var NEW = 'https://al-hagesher.github.io/';
+    function kv(key) {
+      return new Promise(function (res) {
+        try {
+          var r = indexedDB.open('al-hagesher', 1);
+          r.onupgradeneeded = function () { r.transaction.abort(); };
+          r.onerror = function () { res(null); };
+          r.onsuccess = function () {
+            var db = r.result;
+            if (!db.objectStoreNames.contains('kv')) { db.close(); return res(null); }
+            var t = db.transaction('kv').objectStore('kv').get(key);
+            t.onsuccess = function () { res(t.result || null); db.close(); };
+            t.onerror = function () { res(null); db.close(); };
+          };
+        } catch (e) { res(null); }
+      });
+    }
+    var code = null;
+    try { code = (JSON.parse(localStorage.getItem('al-hagesher-sync') || '{}')).code || null; } catch (e) { }
+    if (!code) { var c = await kv('syncCfg'); if (c && c.code) code = c.code; }
+    // מחובר לסנכרון: עוברים לכתובת החדשה ומתחברים עם אותו קוד — כל הנתונים חוזרים מהענן
+    if (code) { location.replace(NEW + '#/pair/' + encodeURIComponent(code)); return; }
+    var state = await kv('state');
+    if (!state) { try { state = JSON.parse(localStorage.getItem('al-hagesher') || 'null'); } catch (e) { } }
+    var hasData = state && ((state.orders || []).length || (state.expenses || []).length || ((state.wheel || {}).entries || []).length || (state.recipes || []).some(function (r) { return !r.library; }));
+    if (!hasData) { location.replace(NEW + location.hash); return; }
+    // יש נתונים מקומיים בלי סנכרון: לא מעבירים אוטומטית — מציעים גיבוי כדי ששום דבר לא יאבד
+    document.getElementById('wait').style.display = 'none';
+    document.getElementById('msg').style.display = 'block';
+    document.getElementById('dl').onclick = function () {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' }));
+      a.download = 'al-hagesher-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a); a.click();
+    };
+  })();
+  </script>
+</body>
+</html>
